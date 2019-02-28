@@ -21,13 +21,12 @@ with open(path_label, 'rb') as f:
     labels = pk.load(f)
 
 
-def test(name, pairs, labels, thre):
-    sent1s, sent2s = pairs
-    sent1s, sent2s, labels = tensorize([sent1s, sent2s, labels], device)
+def test(name, sents, labels, thre):
+    sents, labels = tensorize([sents, labels], device)
     model = map_item(name, models)
     with torch.no_grad():
         model.eval()
-        probs = torch.sigmoid(model(sent1s, sent2s))
+        probs = torch.sigmoid(model(sents))
     probs = torch.squeeze(probs, dim=-1)
     preds = probs > thre
     print('\n%s f1: %.2f - acc: %.2f' % (name, f1_score(labels, preds),
@@ -35,4 +34,4 @@ def test(name, pairs, labels, thre):
 
 
 if __name__ == '__main__':
-    test('esi', sents, labels, thre=0.2)
+    test('trm', sents, labels, thre=0.2)
