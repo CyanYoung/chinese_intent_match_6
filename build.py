@@ -2,41 +2,66 @@ import time
 
 import pickle as pk
 
+import math
+
 import torch
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import CrossEntropyLoss
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 
-from nn_arch import Esi
+from nn_arch import Trm
 
 from util import map_item
+
+
+def get_pos(seq_len, embed_len):
+    pos = torch.zeros(seq_len, embed_len)
+    for i in range(seq_len):
+        for j in range(embed_len):
+            if j % 2:
+                pos[i, j] = math.sin(i / math.pow(1e4, j / embed_len))
+            else:
+                pos[i, j] = math.cos(i / math.pow(1e4, (j - 1) / embed_len))
+    return torch.unsqueeze(pos, dim=0)
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 detail = False if torch.cuda.is_available() else True
 
-batch_size = 128
+embed_len = 200
+seq_len = 30
+
+head, stack = 4, 2
+
+batch_size = 32
 
 path_embed = 'feat/embed.pkl'
+path_label_ind = 'feat/label_ind.pkl'
 with open(path_embed, 'rb') as f:
     embed_mat = pk.load(f)
+with open(path_label_ind, 'rb') as f:
+    label_inds = pk.load(f)
 
-archs = {'esi': Esi}
+class_num = len(label_inds)
 
-paths = {'esi': 'model/rnn_esi.pkl'}
+pos_mat = get_pos(seq_len, embed_len).to(device)
+
+archs = {'trm': Trm}
+
+paths = {'trm': 'model/dnn_trm.pkl'}
 
 
 def load_feat(path_feats):
-    with open(path_feats['pair_train'], 'rb') as f:
-        train_sent1s, train_sent2s = pk.load(f)
+    with open(path_feats['sent_train'], 'rb') as f:
+        train_sents = pk.load(f)
     with open(path_feats['label_train'], 'rb') as f:
         train_labels = pk.load(f)
-    with open(path_feats['pair_dev'], 'rb') as f:
-        dev_sent1s, dev_sent2s = pk.load(f)
+    with open(path_feats['sent_dev'], 'rb') as f:
+        dev_sents = pk.load(f)
     with open(path_feats['label_dev'], 'rb') as f:
         dev_labels = pk.load(f)
-    return train_sent1s, train_sent2s, train_labels, dev_sent1s, dev_sent2s, dev_labels
+    return train_sents, train_labels, dev_sents, dev_labels
 
 
 def step_print(step, batch_loss, batch_acc):
@@ -55,26 +80,25 @@ def tensorize(feats, device):
     return tensors
 
 
-def get_loader(triples):
-    sent1s, sent2s, labels = triples
-    triples = TensorDataset(sent1s, sent2s, labels)
-    return DataLoader(triples, batch_size, shuffle=True)
+def get_loader(pairs):
+    sents, labels = pairs
+    pairs = TensorDataset(sents, labels)
+    return DataLoader(pairs, batch_size, shuffle=True)
 
 
-def get_metric(model, loss_func, triples, thre):
-    sent1s, sent2s, labels = triples
-    prods = model(sent1s, sent2s)
-    prods = torch.squeeze(prods, dim=-1)
-    preds = prods > thre
-    loss = loss_func(prods, labels.float())
-    acc = (preds == labels.byte()).sum().item()
+def get_metric(model, loss_func, pairs):
+    sents, labels = pairs
+    prods = model(sents)
+    preds = torch.max(prods, dim=1)[1]
+    loss = loss_func(prods, labels)
+    acc = (preds == labels).sum().item()
     return loss, acc, len(preds)
 
 
 def batch_train(model, loss_func, optim, loader, detail):
     total_loss, total_acc, total_num = [0] * 3
-    for step, triples in enumerate(loader):
-        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, triples, thre=0.5)
+    for step, pairs in enumerate(loader):
+        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs)
         optim.zero_grad()
         batch_loss.backward()
         optim.step()
@@ -87,21 +111,21 @@ def batch_train(model, loss_func, optim, loader, detail):
 
 def batch_dev(model, loss_func, loader):
     total_loss, total_acc, total_num = [0] * 3
-    for step, triples in enumerate(loader):
-        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, triples, thre=0.5)
+    for step, pairs in enumerate(loader):
+        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs)
         total_loss = total_loss + batch_loss.item()
         total_acc, total_num = total_acc + batch_acc, total_num + batch_num
     return total_loss / total_num, total_acc / total_num
 
 
-def fit(name, max_epoch, embed_mat, path_feats, detail):
+def fit(name, max_epoch, embed_mat, class_num, path_feats, detail):
     tensors = tensorize(load_feat(path_feats), device)
     bound = int(len(tensors) / 2)
     train_loader, dev_loader = get_loader(tensors[:bound]), get_loader(tensors[bound:])
     embed_mat = torch.Tensor(embed_mat)
     arch = map_item(name, archs)
-    model = arch(embed_mat).to(device)
-    loss_func = BCEWithLogitsLoss(reduction='sum')
+    model = arch(embed_mat, pos_mat, class_num, head, stack).to(device)
+    loss_func = CrossEntropyLoss(reduction='sum')
     learn_rate, min_rate = 1e-3, 1e-5
     min_dev_loss = float('inf')
     trap_count, max_count = 0, 3
@@ -138,8 +162,8 @@ def fit(name, max_epoch, embed_mat, path_feats, detail):
 
 if __name__ == '__main__':
     path_feats = dict()
-    path_feats['pair_train'] = 'feat/pair_train.pkl'
+    path_feats['sent_train'] = 'feat/sent_train.pkl'
     path_feats['label_train'] = 'feat/label_train.pkl'
-    path_feats['pair_dev'] = 'feat/pair_dev.pkl'
+    path_feats['sent_dev'] = 'feat/sent_dev.pkl'
     path_feats['label_dev'] = 'feat/label_dev.pkl'
-    fit('esi', 50, embed_mat, path_feats, detail)
+    fit('trm', 50, embed_mat, class_num, path_feats, detail)
