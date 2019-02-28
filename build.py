@@ -15,8 +15,8 @@ from util import map_item
 
 
 def get_pos(seq_len, embed_len):
-    pos = torch.zeros(seq_len, embed_len)
-    for i in range(seq_len):
+    pos = torch.zeros(seq_len * 2, embed_len)
+    for i in range(seq_len * 2):
         for j in range(embed_len):
             if j % 2:
                 pos[i, j] = math.sin(i / math.pow(1e4, j / embed_len))

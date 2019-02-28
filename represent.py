@@ -74,7 +74,7 @@ def merge(sent1_words, sent2_words, path_sent):
     pad_seqs = list()
     for word1s, word2s in zip(sent1_words, sent2_words):
         words = word1s + word2s
-        pad_seq = sent2ind(words, word_inds, seq_len, keep_oov=True)
+        pad_seq = sent2ind(words, word_inds, seq_len * 2, keep_oov=True)
         pad_seqs.append(pad_seq)
     pad_seqs = np.array(pad_seqs)
     with open(path_sent, 'wb') as f:
