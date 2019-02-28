@@ -94,7 +94,7 @@ def get_metric(model, loss_func, pairs, thre):
 def batch_train(model, loss_func, optim, loader, detail):
     total_loss, total_acc, total_num = [0] * 3
     for step, pairs in enumerate(loader):
-        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs, thre=0.5)
+        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs, thre=0)
         optim.zero_grad()
         batch_loss.backward()
         optim.step()
@@ -108,7 +108,7 @@ def batch_train(model, loss_func, optim, loader, detail):
 def batch_dev(model, loss_func, loader):
     total_loss, total_acc, total_num = [0] * 3
     for step, pairs in enumerate(loader):
-        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs, thre=0.5)
+        batch_loss, batch_acc, batch_num = get_metric(model, loss_func, pairs, thre=0)
         total_loss = total_loss + batch_loss.item()
         total_acc, total_num = total_acc + batch_acc, total_num + batch_num
     return total_loss / total_num, total_acc / total_num
