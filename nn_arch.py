@@ -6,11 +6,11 @@ import torch.nn.functional as F
 
 
 class Trm(nn.Module):
-    def __init__(self, embed_mat, pos_mat, class_num, head, stack):
+    def __init__(self, embed_mat, pos_mat, head, stack):
         super(Trm, self).__init__()
         self.encode = TrmEncode(embed_mat, pos_mat, head, stack)
         self.dl = nn.Sequential(nn.Dropout(0.2),
-                                nn.Linear(200, class_num))
+                                nn.Linear(200, 1))
 
     def forward(self, x):
         x = self.encode(x)
