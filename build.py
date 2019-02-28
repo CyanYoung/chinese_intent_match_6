@@ -121,7 +121,8 @@ def fit(name, max_epoch, embed_mat, path_feats, detail):
     embed_mat = torch.Tensor(embed_mat)
     arch = map_item(name, archs)
     model = arch(embed_mat, pos_mat, head, stack).to(device)
-    loss_func = BCEWithLogitsLoss(reduction='sum')
+    pos_weight = torch.Tensor([0.9]).to(device)
+    loss_func = BCEWithLogitsLoss(reduction='sum', pos_weight=pos_weight)
     learn_rate, min_rate = 1e-3, 1e-5
     min_dev_loss = float('inf')
     trap_count, max_count = 0, 3
