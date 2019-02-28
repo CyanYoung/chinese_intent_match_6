@@ -1,72 +1,67 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-seq_len = 30
-
-
-class Esi(nn.Module):
-    def __init__(self, embed_mat):
-        super(Esi, self).__init__()
-        self.encode1 = Encode1(embed_mat)
-        self.encode2 = Encode2()
-        self.mp = nn.MaxPool1d(seq_len)
-        self.ap = nn.AvgPool1d(seq_len)
-        self.lal = nn.Sequential(nn.Linear(1600, 200),
-                                 nn.ReLU(),
-                                 nn.Linear(200, 200))
+class Trm(nn.Module):
+    def __init__(self, embed_mat, pos_mat, class_num, head, stack):
+        super(Trm, self).__init__()
+        self.encode = TrmEncode(embed_mat, pos_mat, head, stack)
         self.dl = nn.Sequential(nn.Dropout(0.2),
-                                nn.Linear(200, 1))
+                                nn.Linear(200, class_num))
 
-    @staticmethod
-    def attend(x, y):
-        d = torch.matmul(x, y.transpose(-2, -1))
-        a = F.softmax(d, dim=-1)
-        return torch.matmul(a, y)
-
-    @staticmethod
-    def merge1(x, x_):
-        diff = torch.abs(x - x_)
-        prod = x * x_
-        return torch.cat([x, x_, diff, prod], dim=-1)
-
-    def merge2(self, x):
-        avg = self.ap(x.transpose(1, 2))
-        max = self.mp(x.transpose(1, 2))
-        avg = torch.squeeze(avg, dim=-1)
-        max = torch.squeeze(max, dim=-1)
-        return torch.cat([avg, max], dim=-1)
-
-    def forward(self, x, y):
-        x, y = self.encode1(x), self.encode1(y)
-        x_, y_ = self.attend(x, y), self.attend(y, x)
-        x, y = self.merge1(x, x_), self.merge1(y, y_)
-        x, y = self.encode2(x), self.encode2(y)
-        x, y = self.merge2(x), self.merge2(y)
-        z = torch.cat([x, y], dim=-1)
-        z = self.lal(z)
-        return self.dl(z)
+    def forward(self, x):
+        x = self.encode(x)
+        x = x[:, 0, :]
+        return self.dl(x)
 
 
-class Encode1(nn.Module):
-    def __init__(self, embed_mat):
-        super(Encode1, self).__init__()
+class TrmEncode(nn.Module):
+    def __init__(self, embed_mat, pos_mat, head, stack):
+        super(TrmEncode, self).__init__()
         vocab_num, embed_len = embed_mat.size()
         self.embed = nn.Embedding(vocab_num, embed_len, _weight=embed_mat)
-        self.ra = nn.LSTM(embed_len, 200, batch_first=True, bidirectional=True)
+        self.pos = pos_mat
+        self.layers = nn.ModuleList([EncodeLayer(embed_len, head) for _ in range(stack)])
 
     def forward(self, x):
+        p = self.pos.repeat(x.size(0), 1, 1)
         x = self.embed(x)
-        h, hc_n = self.ra(x)
-        return h
+        x = x + p
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
 
-class Encode2(nn.Module):
-    def __init__(self):
-        super(Encode2, self).__init__()
-        self.ra = nn.LSTM(1600, 200, batch_first=True, bidirectional=True)
+class EncodeLayer(nn.Module):
+    def __init__(self, embed_len, head):
+        super(EncodeLayer, self).__init__()
+        self.head = head
+        self.qry = nn.Linear(embed_len, 200 * head)
+        self.key = nn.Linear(embed_len, 200 * head)
+        self.val = nn.Linear(embed_len, 200 * head)
+        self.fuse = nn.Linear(200 * head, 200)
+        self.lal = nn.Sequential(nn.Linear(200, 200),
+                                 nn.ReLU(),
+                                 nn.Linear(200, 200))
+        self.lns = nn.ModuleList([nn.LayerNorm(200) for _ in range(2)])
+
+    def mul_att(self, x, y):
+        q = self.qry(y).view(y.size(0), y.size(1), self.head, -1).transpose(1, 2)
+        k = self.key(x).view(x.size(0), x.size(1), self.head, -1).transpose(1, 2)
+        v = self.val(x).view(x.size(0), x.size(1), self.head, -1).transpose(1, 2)
+        d = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(k.size(-1))
+        a = F.softmax(d, dim=-1)
+        c = torch.matmul(a, v).transpose(1, 2)
+        c = c.contiguous().view(c.size(0), c.size(1), -1)
+        return self.fuse(c)
 
     def forward(self, x):
-        h, hc_n = self.ra(x)
-        return h
+        r = x
+        x = self.mul_att(x, x)
+        x = self.lns[0](x + r)
+        r = x
+        x = self.lal(x)
+        return self.lns[1](x + r)
