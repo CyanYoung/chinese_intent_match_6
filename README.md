@@ -10,11 +10,13 @@ clean() 去除停用词，替换同音、同义词，prepare() 打乱后划分�
 
 #### 3.represent
 
-embed() 建立词索引到词向量的映射，align() 将序列填充为相同长度
+add_flag() 分别添加 bos、sep，merge() 连接两句后填充为相同长度
 
 #### 4.build
 
-train 80% / dev 20% 划分，通过 dnn 的 trm 构建匹配模型
+通过 dnn 的 trm 构建匹配模型、bos 代表整句特征，对编码器词特征 x 多头
+
+线性映射得到 q、k、v，使用点积注意力得到语境向量 c、再线性映射进行降维
 
 #### 6.match
 
