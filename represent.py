@@ -71,7 +71,7 @@ def align(sent_words):
     return np.array(pad_seqs)
 
 
-def vectorize(path_data, path_pair, path_label, mode):
+def vectorize(path_data, path_sent, path_label, mode):
     sent1s = flat_read(path_data, 'text1')
     sent2s = flat_read(path_data, 'text2')
     sent1_words = [list(sent) for sent in sent1s]
@@ -83,7 +83,7 @@ def vectorize(path_data, path_pair, path_label, mode):
     pad_seq1s, pad_seq2s = align(sent1_words), align(sent2_words)
     pairs = (pad_seq1s, pad_seq2s)
     labels = np.array(labels)
-    with open(path_pair, 'wb') as f:
+    with open(path_sent, 'wb') as f:
         pk.dump(pairs, f)
     with open(path_label, 'wb') as f:
         pk.dump(labels, f)
@@ -91,14 +91,14 @@ def vectorize(path_data, path_pair, path_label, mode):
 
 if __name__ == '__main__':
     path_data = 'data/train.csv'
-    path_pair = 'feat/pair_train.pkl'
+    path_sent = 'feat/sent_train.pkl'
     path_label = 'feat/label_train.pkl'
-    vectorize(path_data, path_pair, path_label, 'train')
+    vectorize(path_data, path_sent, path_label, 'train')
     path_data = 'data/dev.csv'
-    path_pair = 'feat/pair_dev.pkl'
+    path_sent = 'feat/sent_dev.pkl'
     path_label = 'feat/label_dev.pkl'
-    vectorize(path_data, path_pair, path_label, 'dev')
+    vectorize(path_data, path_sent, path_label, 'dev')
     path_data = 'data/test.csv'
-    path_pair = 'feat/pair_test.pkl'
+    path_sent = 'feat/sent_test.pkl'
     path_label = 'feat/label_test.pkl'
-    vectorize(path_data, path_pair, path_label, 'test')
+    vectorize(path_data, path_sent, path_label, 'test')

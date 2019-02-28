@@ -13,10 +13,10 @@ from util import map_item
 
 device = torch.device('cpu')
 
-path_pair = 'feat/pair_test.pkl'
+path_pair = 'feat/sent_test.pkl'
 path_label = 'feat/label_test.pkl'
 with open(path_pair, 'rb') as f:
-    pairs = pk.load(f)
+    sents = pk.load(f)
 with open(path_label, 'rb') as f:
     labels = pk.load(f)
 
@@ -35,4 +35,4 @@ def test(name, pairs, labels, thre):
 
 
 if __name__ == '__main__':
-    test('esi', pairs, labels, thre=0.2)
+    test('esi', sents, labels, thre=0.2)
