@@ -12,6 +12,8 @@ min_freq = 5
 max_vocab = 5000
 seq_len = 30
 
+bos, seq = '<', '-'
+
 pad_ind, oov_ind = 0, 1
 
 path_word_vec = 'feat/word_vec.pkl'
