@@ -12,13 +12,20 @@ min_freq = 5
 max_vocab = 5000
 seq_len = 30
 
-bos, seq = '<', '-'
+bos, sep = '<', '-'
 
 pad_ind, oov_ind = 0, 1
 
 path_word_vec = 'feat/word_vec.pkl'
 path_word_ind = 'feat/word_ind.pkl'
 path_embed = 'feat/embed.pkl'
+
+
+def add_flag(texts, flag):
+    flag_texts = list()
+    for text in texts:
+        flag_texts.append(flag + text)
+    return flag_texts
 
 
 def tran_dict(word_inds, off):
@@ -56,35 +63,36 @@ def sent2ind(words, word_inds, seq_len, keep_oov):
         elif keep_oov:
             seq.append(oov_ind)
     if len(seq) < seq_len:
-        return [pad_ind] * (seq_len - len(seq)) + seq
+        return seq + [pad_ind] * (seq_len - len(seq))
     else:
         return seq[-seq_len:]
 
 
-def align(sent_words):
+def merge(sent1_words, sent2_words, path_sent):
     with open(path_word_ind, 'rb') as f:
         word_inds = pk.load(f)
     pad_seqs = list()
-    for words in sent_words:
+    for word1s, word2s in zip(sent1_words, sent2_words):
+        words = word1s + word2s
         pad_seq = sent2ind(words, word_inds, seq_len, keep_oov=True)
         pad_seqs.append(pad_seq)
-    return np.array(pad_seqs)
+    pad_seqs = np.array(pad_seqs)
+    with open(path_sent, 'wb') as f:
+        pk.dump(pad_seqs, f)
 
 
 def vectorize(path_data, path_sent, path_label, mode):
-    sent1s = flat_read(path_data, 'text1')
-    sent2s = flat_read(path_data, 'text2')
+    text1s = flat_read(path_data, 'text1')
+    text2s = flat_read(path_data, 'text2')
+    sent1s, sent2s = add_flag(text1s, bos), add_flag(text2s, sep)
     sent1_words = [list(sent) for sent in sent1s]
     sent2_words = [list(sent) for sent in sent2s]
     labels = flat_read(path_data, 'label')
     sent_words = sent1_words + sent2_words
     if mode == 'train':
         embed(sent_words, path_word_ind, path_word_vec, path_embed)
-    pad_seq1s, pad_seq2s = align(sent1_words), align(sent2_words)
-    pairs = (pad_seq1s, pad_seq2s)
+    merge(sent1_words, sent2_words, path_sent)
     labels = np.array(labels)
-    with open(path_sent, 'wb') as f:
-        pk.dump(pairs, f)
     with open(path_label, 'wb') as f:
         pk.dump(labels, f)
 
