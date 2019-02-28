@@ -22,7 +22,7 @@ def save(path, pairs):
 
 
 def clean(text):
-    text = re.sub(stop_word_re, '', text)
+    text = re.sub(stop_word_re, '', text.strip())
     text = word_replace(text, homo_dict)
     return word_replace(text, syno_dict)
 
