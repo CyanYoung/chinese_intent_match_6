@@ -2,7 +2,7 @@ import pickle as pk
 
 import torch
 
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 
 from build import tensorize
 
@@ -29,8 +29,8 @@ def test(name, sents, labels, thre):
         probs = torch.sigmoid(model(sents))
     probs = torch.squeeze(probs, dim=-1)
     preds = probs > thre
-    print('\n%s f1: %.2f - acc: %.2f' % (name, f1_score(labels, preds),
-                                         accuracy_score(labels, preds)))
+    f1 = f1_score(labels, preds)
+    print('\n%s f1: %.2f - acc: %.2f' % (name, f1, accuracy_score(labels, preds)))
 
 
 if __name__ == '__main__':
