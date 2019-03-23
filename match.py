@@ -19,7 +19,7 @@ path_word_ind = 'feat/word_ind.pkl'
 with open(path_word_ind, 'rb') as f:
     word_inds = pk.load(f)
 
-paths = {'trm': 'model/dnn_trm.pkl'}
+paths = {'trm': 'model/trm.pkl'}
 
 models = {'trm': torch.load(map_item('trm', paths), map_location=device)}
 
